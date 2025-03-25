@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
-from app.models import db, Subject, Chapter, Quiz, Question, User
+from app.extensions import db
+from app.models import Subject, Chapter, Quiz, Question, User
 from app.utils.helpers import admin_required
 
 admin_bp = Blueprint("admin", __name__)
@@ -83,5 +84,5 @@ def create_question(quiz_id):
 @admin_required
 def list_users():
     users = User.query.all()
-    user_list = [{"id": user.id, "username": user.username, "full_name": user.full_name} for user in users]
+    user_list = [{"id": user.id, "email": user.email, "full_name": user.full_name} for user in users]
     return jsonify({"users": user_list}), 200

@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.models import db, User, Quiz, Score
+from app.extensions import db
+from app.models import User, Quiz, Score
 from datetime import datetime
 
 user_bp = Blueprint("user", __name__)
@@ -16,10 +17,10 @@ def get_profile():
 
     user_data = {
         "id": user.id,
-        "username": user.username,
+        "email": user.email,
         "full_name": user.full_name,
         "qualification": user.qualification,
-        "dob": str(user.dob)
+        "dob": str(user.dob) if user.dob else None
     }
 
     return jsonify({"user": user_data}), 200
@@ -29,7 +30,12 @@ def get_profile():
 def get_quizzes():
     quizzes = Quiz.query.all()
     quiz_list = [
-        {"id": quiz.id, "chapter_id": quiz.chapter_id, "date_of_quiz": str(quiz.date_of_quiz), "time_duration": quiz.time_duration}
+        {
+            "id": quiz.id, 
+            "chapter_id": quiz.chapter_id, 
+            "date_of_quiz": str(quiz.date_of_quiz), 
+            "time_duration": quiz.time_duration
+        }
         for quiz in quizzes
     ]
     return jsonify({"quizzes": quiz_list}), 200
@@ -45,12 +51,15 @@ def attempt_quiz(quiz_id):
 
     data = request.get_json()
     total_scored = data.get("total_scored", 0)
+    total_possible = data.get("total_possible", 0)
 
     score_entry = Score(
         quiz_id=quiz_id,
         user_id=user_id,
         time_stamp_of_attempt=datetime.utcnow(),
-        total_scored=total_scored
+        total_scored=total_scored,
+        total_possible=total_possible,
+        completed=True
     )
 
     db.session.add(score_entry)
@@ -65,7 +74,13 @@ def get_scores():
     scores = Score.query.filter_by(user_id=user_id).all()
 
     score_list = [
-        {"quiz_id": score.quiz_id, "total_scored": score.total_scored, "attempted_on": str(score.time_stamp_of_attempt)}
+        {
+            "quiz_id": score.quiz_id, 
+            "total_scored": score.total_scored,
+            "total_possible": score.total_possible,
+            "percentage": (score.total_scored / score.total_possible * 100) if score.total_possible > 0 else 0,
+            "attempted_on": str(score.time_stamp_of_attempt)
+        }
         for score in scores
     ]
 
