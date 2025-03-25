@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
-from app.models import db, Quiz, Question
-from datetime import datetime
+from app.models import Quiz, Question
+from app.extensions import db
 
 quiz_bp = Blueprint("quiz", __name__)
 
@@ -67,8 +67,8 @@ def submit_quiz(quiz_id):
     if not questions:
         return jsonify({"error": "No questions found"}), 404
 
-    correct_answers = {q.id: q.correct_option for q in questions}
+    correct_answers = {str(q.id): q.correct_option for q in questions}
     user_answers = data["answers"]
-    score = sum(1 for q_id, ans in user_answers.items() if correct_answers.get(q_id) == ans)
+    score = sum(1 for q_id, ans in user_answers.items() if correct_answers.get(q_id) == int(ans))
 
     return jsonify({"message": "Quiz submitted", "total_score": score}), 200
