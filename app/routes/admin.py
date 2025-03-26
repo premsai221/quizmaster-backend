@@ -19,7 +19,6 @@ def create_subject():
         if "name" not in data:
             return jsonify({"error": "Name is required"}), 400
         
-        # Check if subject already exists
         existing_subject = Subject.query.filter_by(name=data["name"]).first()
         if existing_subject:
             return jsonify({"error": "Subject with this name already exists"}), 400
@@ -53,12 +52,10 @@ def create_chapter(subject_id):
         if "name" not in data:
             return jsonify({"error": "Name is required"}), 400
         
-        # Check if subject exists
         subject = Subject.query.get(subject_id)
         if not subject:
             return jsonify({"error": "Subject not found"}), 404
-            
-        # Check if chapter already exists in this subject
+
         existing_chapter = Chapter.query.filter_by(name=data["name"], subject_id=subject_id).first()
         if existing_chapter:
             return jsonify({"error": "Chapter with this name already exists in the subject"}), 400
@@ -79,7 +76,7 @@ def create_chapter(subject_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Server error: {str(e)}"}), 500
-
+    
 @admin_bp.route("/quizzes", methods=["POST"])
 @jwt_required()
 @admin_required
@@ -94,12 +91,14 @@ def create_quiz():
         if not all(field in data for field in required_fields):
             return jsonify({"error": "Missing required fields"}), 400
 
-        # Check if chapter exists
         chapter = Chapter.query.get(data["chapter_id"])
         if not chapter:
             return jsonify({"error": "Chapter not found"}), 404
-            
-        # Parse date if needed
+        
+        existing_quiz = Quiz.query.filter_by(chapter_id=data["chapter_id"]).first()
+        if existing_quiz:
+            return jsonify({"error": "A quiz already exists for this chapter"}), 400
+
         try:
             if isinstance(data["date_of_quiz"], str):
                 quiz_date = datetime.strptime(data["date_of_quiz"], "%Y-%m-%d %H:%M:%S")
@@ -183,3 +182,25 @@ def list_users():
         return jsonify({"users": user_list}), 200
     except Exception as e:
         return jsonify({"error": f"Error fetching users: {str(e)}"}), 500
+    
+
+@admin_bp.route("/generate-test-data", methods=["POST"])
+@jwt_required()
+@admin_required
+def generate_test_data():
+    try:
+        from seed_data import seed_data
+
+        data = request.get_json() or {}
+        num_users = data.get("num_users", 10)
+        num_subjects = data.get("num_subjects", 5)
+        
+        seed_data(num_users, num_subjects)
+        
+        return jsonify({
+            "message": "Test data generated successfully",
+            "users_created": num_users,
+            "subjects_created": num_subjects
+        }), 201
+    except Exception as e:
+        return jsonify({"error": f"Error generating test data: {str(e)}"}), 500

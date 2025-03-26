@@ -33,11 +33,11 @@ class Chapter(db.Model):
 
 class Quiz(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    chapter_id = db.Column(db.Integer, db.ForeignKey('chapter.id'), nullable=False)
-    date_of_quiz = db.Column(db.DateTime, default=datetime.utcnow)
+    chapter_id = db.Column(db.Integer, db.ForeignKey('chapter.id'), unique=True)
+    date_of_quiz = db.Column(db.DateTime, nullable=False)
     time_duration = db.Column(db.Integer, nullable=False)
-    remarks = db.Column(db.Text)
-    questions = db.relationship('Question', backref='quiz', lazy=True, cascade="all, delete-orphan")
+    remarks = db.Column(db.String(500))
+    questions = db.relationship('Question', backref='quiz', lazy=True)
     scores = db.relationship('Score', backref='quiz', lazy=True)
 
 class Question(db.Model):
