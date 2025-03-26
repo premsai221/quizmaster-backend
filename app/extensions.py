@@ -7,5 +7,5 @@ from flask_caching import Cache
 db = SQLAlchemy()
 jwt = JWTManager()
 bcrypt = Bcrypt()
-cors = CORS()
+cors = CORS(supports_credentials=True)
 cache = Cache()

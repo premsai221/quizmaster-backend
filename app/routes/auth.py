@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, set_access_cookies
 from app.extensions import db
 from app.models import User
 from datetime import timedelta, datetime
@@ -45,7 +45,7 @@ def register():
 def login():
     try:
         data = request.get_json()
-        if not data or "email" not in data or "password" not in data:
+        if not data.get("email") or not data.get("password"):
             return jsonify({"error": "Email and password required"}), 400
 
         user = User.query.filter_by(email=data["email"]).first()
@@ -56,8 +56,7 @@ def login():
             identity=str(user.id),  
             expires_delta=timedelta(hours=2)
         )
-
-        return jsonify({
+        resp = jsonify({
             "message": "Login successful", 
             "access_token": access_token,
             "user": {
@@ -66,7 +65,9 @@ def login():
                 "full_name": user.full_name,
                 "role": user.role
             }
-        }), 200
+        })
+        set_access_cookies(resp, access_token)
+        return resp, 200
     except Exception as e:
         return jsonify({"error": f"Server error: {str(e)}"}), 500
 

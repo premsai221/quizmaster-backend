@@ -1,9 +1,42 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
-from app.models import Quiz, Question
+from app.models import Quiz, Question, Subject, Chapter
 from app.extensions import db
 
 quiz_bp = Blueprint("quiz", __name__)
+
+@quiz_bp.route("/subjects", methods=["GET"])
+@jwt_required()
+def get_all_subjects():
+    subjects = Subject.query.all()
+    subjects_list = [
+        {
+            'id': subject.id,
+            'name': subject.name,
+            'description': subject.description
+        } for subject in subjects
+    ]
+    return jsonify({'subjects': subjects_list})
+
+
+@quiz_bp.route("/subjects/<int:subject_id>/chapters", methods=["GET"])
+@jwt_required()
+def get_all_chapters(subject_id):
+    subject = Subject.query.get(subject_id)
+
+    if not subject:
+        return jsonify({"error": "Subject not found"}), 404
+    
+    chapters = Chapter.query.filter_by(subject_id=subject_id).all()
+    chapters_list = [
+        {
+            'id': chapter.id,
+            'name': chapter.name,
+            'description': chapter.description
+        } for chapter in chapters
+    ]
+    return jsonify({'chapters': chapters_list})
+
 
 @quiz_bp.route("/<int:quiz_id>", methods=["GET"])
 @jwt_required()

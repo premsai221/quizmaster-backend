@@ -26,6 +26,7 @@ def create_app():
         
     @jwt.unauthorized_loader
     def unauthorized_callback(error):
+        print(error)
         return {"error": "Missing authorization token"}, 401
     
     # Register blueprints

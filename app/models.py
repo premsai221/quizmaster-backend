@@ -29,7 +29,7 @@ class Chapter(db.Model):
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
     subject_id = db.Column(db.Integer, db.ForeignKey('subject.id'), nullable=False)
-    quizzes = db.relationship('Quiz', backref='chapter', lazy=True, cascade="all, delete-orphan")
+    quiz = db.relationship('Quiz', backref='chapter', lazy=True, cascade="all, delete-orphan")
 
 class Quiz(db.Model):
     id = db.Column(db.Integer, primary_key=True)
