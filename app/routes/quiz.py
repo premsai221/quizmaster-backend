@@ -32,7 +32,10 @@ def get_all_chapters(subject_id):
         {
             'id': chapter.id,
             'name': chapter.name,
-            'description': chapter.description
+            'description': chapter.description,
+            'quiz_id': chapter.quiz[0].id,
+            'date_of_quiz': chapter.quiz[0].date_of_quiz,
+            'time_duration': chapter.quiz[0].time_duration
         } for chapter in chapters
     ]
     return jsonify({'chapters': chapters_list})

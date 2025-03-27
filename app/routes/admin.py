@@ -39,6 +39,37 @@ def create_subject():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Server error: {str(e)}"}), 500
+    
+
+@admin_bp.route("/subjects/edit/<int:subject_id>", methods=["POST"])
+@jwt_required()
+@admin_required
+def edit_subject(subject_id):
+    try:
+        data = request.get_json()
+        if not subject_id:
+            return jsonify({"error": "Invalid subject"}), 400
+        
+        existing_subject = Subject.query.filter_by(name=data["name"]).first()
+        if existing_subject.id != subject_id:
+            return jsonify({"error": "Subject with this name already exists"}), 400
+        
+        subject = Subject.query.get(subject_id)
+        if not subject:
+            return jsonify({"error": "Subject not found"}), 404
+        subject.name = data["name"]
+        subject.description = data.get("description", "")
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Subject created",
+            "subject": subject.id,
+            "name": subject.name
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
 
 @admin_bp.route("/subjects/<int:subject_id>/chapters", methods=["POST"])
 @jwt_required()
