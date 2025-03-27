@@ -138,12 +138,10 @@ def create_question(quiz_id):
         if not all(field in data for field in required_fields):
             return jsonify({"error": "Missing required fields"}), 400
         
-        # Validate quiz exists
         quiz = Quiz.query.get(quiz_id)
         if not quiz:
             return jsonify({"error": "Quiz not found"}), 404
             
-        # Validate correct_option is in range
         if not (1 <= data["correct_option"] <= 4):
             return jsonify({"error": "Correct option must be between 1 and 4"}), 400
         
@@ -204,3 +202,120 @@ def generate_test_data():
         }), 201
     except Exception as e:
         return jsonify({"error": f"Error generating test data: {str(e)}"}), 500
+    
+@admin_bp.route("/subjects/<int:subject_id>/complete-chapter", methods=["POST"])
+@jwt_required()
+@admin_required
+def create_complete_chapter(subject_id):
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid JSON data"}), 400
+            
+        if not all(key in data for key in ["chapter", "quiz", "questions"]):
+            return jsonify({"error": "Missing required sections: chapter, quiz, and questions"}), 400
+
+        chapter_data = data["chapter"]
+        if "name" not in chapter_data:
+            return jsonify({"error": "Chapter name is required"}), 400
+            
+        quiz_data = data["quiz"]
+        if not all(key in quiz_data for key in ["date_of_quiz", "time_duration"]):
+            return jsonify({"error": "Quiz must include date_of_quiz and time_duration"}), 400
+            
+        questions_data = data["questions"]
+        if not isinstance(questions_data, list) or len(questions_data) == 0:
+            return jsonify({"error": "Questions must be a non-empty array"}), 400
+            
+        subject = Subject.query.get(subject_id)
+        if not subject:
+            return jsonify({"error": f"Subject with ID {subject_id} not found"}), 404
+            
+        existing_chapter = Chapter.query.filter_by(
+            subject_id=subject_id, name=chapter_data["name"]
+        ).first()
+        
+        if existing_chapter:
+            return jsonify({"error": f"Chapter with name '{chapter_data['name']}' already exists for this subject"}), 400
+            
+        try:
+            chapter = Chapter(
+                name=chapter_data["name"],
+                description=chapter_data.get("description", ""),
+                subject_id=subject_id
+            )
+            db.session.add(chapter)
+            db.session.flush()
+            
+            try:
+                if isinstance(quiz_data["date_of_quiz"], str):
+                    quiz_date = datetime.strptime(quiz_data["date_of_quiz"], "%Y-%m-%d %H:%M:%S")
+                else:
+                    quiz_date = quiz_data["date_of_quiz"]
+            except ValueError:
+                db.session.rollback()
+                return jsonify({"error": "Invalid date format. Use YYYY-MM-DD HH:MM:SS"}), 400
+                
+            quiz = Quiz(
+                chapter_id=chapter.id,
+                date_of_quiz=quiz_date,
+                time_duration=quiz_data["time_duration"],
+                remarks=quiz_data.get("remarks", "")
+            )
+            db.session.add(quiz)
+            db.session.flush()
+            
+            created_questions = []
+            for idx, q_data in enumerate(questions_data, 1):
+                required_question_fields = ["question_statement", "option1", "option2", 
+                                          "option3", "option4", "correct_option"]
+                if not all(field in q_data for field in required_question_fields):
+                    db.session.rollback()
+                    return jsonify({
+                        "error": f"Question #{idx} is missing required fields",
+                        "required_fields": required_question_fields
+                    }), 400
+                
+                if not (1 <= q_data["correct_option"] <= 4):
+                    db.session.rollback()
+                    return jsonify({
+                        "error": f"Question #{idx}: Correct option must be between 1 and 4"
+                    }), 400
+                
+                question = Question(
+                    quiz_id=quiz.id,
+                    question_statement=q_data["question_statement"],
+                    option1=q_data["option1"],
+                    option2=q_data["option2"],
+                    option3=q_data["option3"],
+                    option4=q_data["option4"],
+                    correct_option=q_data["correct_option"]
+                )
+                db.session.add(question)
+                created_questions.append(question)
+            
+            db.session.commit()
+            
+            response = {
+                "message": "Chapter with quiz and questions created successfully",
+                "chapter": {
+                    "id": chapter.id,
+                    "name": chapter.name,
+                    "subject_id": chapter.subject_id
+                },
+                "quiz": {
+                    "id": quiz.id,
+                    "date_of_quiz": quiz.date_of_quiz.strftime("%Y-%m-%d %H:%M:%S"),
+                    "time_duration": quiz.time_duration
+                },
+                "questions_count": len(created_questions)
+            }
+            
+            return jsonify(response), 201
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": f"Database error: {str(e)}"}), 500
+            
+    except Exception as e:
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
