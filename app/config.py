@@ -8,8 +8,8 @@ class Config:
     # JWT Configuration
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your_jwt_secret_key")
     JWT_ACCESS_TOKEN_EXPIRES = 7200  # 2 hours
-    JWT_COOKIE_SECURE = True
-    JWT_TOKEN_LOCATION = ['cookies']
+    JWT_COOKIE_SECURE = False # Set to True in production
+    JWT_TOKEN_LOCATION = ['headers', 'cookies']
     JWT_COOKIE_SAMESITE="None"
     JWT_COOKIE_CSRF_PROTECT=False
 
