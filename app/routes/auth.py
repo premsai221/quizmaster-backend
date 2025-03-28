@@ -1,10 +1,17 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, set_access_cookies
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, set_access_cookies, unset_jwt_cookies
 from app.extensions import db
 from app.models import User
 from datetime import timedelta, datetime
 
 auth_bp = Blueprint("auth", __name__)
+
+@auth_bp.route("/logout", methods=["POST"])
+@jwt_required()
+def logout():
+    resp = jsonify({"message": "logged out successfully"})
+    unset_jwt_cookies(resp)
+    return resp, 200
 
 @auth_bp.route("/register", methods=["POST"])
 def register():
@@ -13,7 +20,7 @@ def register():
         if not data:
             return jsonify({"error": "Invalid JSON data"}), 400
             
-        required_fields = ["email", "password", "full_name", "qualification", "dob"]
+        required_fields = ["email", "password", "full_name", "qualification", "dob", "phone_number"]
 
         if not all(field in data for field in required_fields):
             return jsonify({"error": "Missing required fields"}), 400
@@ -21,7 +28,7 @@ def register():
         if User.query.filter_by(email=data["email"]).first():
             return jsonify({"error": "Email already exists"}), 400
         try:
-            dob = datetime.strptime(data["dob"], "%Y-%m-%d").date()
+            dob = datetime.fromisoformat(data["dob"]).date()
         except ValueError:
             return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
 
@@ -29,7 +36,8 @@ def register():
             email=data["email"],
             full_name=data["full_name"],
             qualification=data["qualification"],
-            dob=dob  
+            phone_number=data["phone_number"],
+            dob=dob
         )
         user.set_password(data["password"])
 
@@ -48,6 +56,8 @@ def login():
         if not data.get("email") or not data.get("password"):
             return jsonify({"error": "Email and password required"}), 400
 
+        for user in User.query.all():
+            print(user.email)
         user = User.query.filter_by(email=data["email"]).first()
 
         if not user or not user.check_password(data["password"]):

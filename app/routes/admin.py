@@ -51,7 +51,7 @@ def edit_subject(subject_id):
             return jsonify({"error": "Invalid subject"}), 400
         
         existing_subject = Subject.query.filter_by(name=data["name"]).first()
-        if existing_subject.id != subject_id:
+        if existing_subject and existing_subject.id != subject_id:
             return jsonify({"error": "Subject with this name already exists"}), 400
         
         subject = Subject.query.get(subject_id)
@@ -280,7 +280,7 @@ def create_complete_chapter(subject_id):
             
             try:
                 if isinstance(quiz_data["date_of_quiz"], str):
-                    quiz_date = datetime.strptime(quiz_data["date_of_quiz"], "%Y-%m-%d %H:%M:%S")
+                    quiz_date = datetime.fromisoformat(quiz_data["date_of_quiz"])
                 else:
                     quiz_date = quiz_data["date_of_quiz"]
             except ValueError:

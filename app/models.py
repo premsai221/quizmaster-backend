@@ -9,6 +9,7 @@ class User(db.Model, UserMixin):
     full_name = db.Column(db.String(100))
     qualification = db.Column(db.String(100))
     dob = db.Column(db.Date)
+    phone_number = db.Column(db.String(10))
     role = db.Column(db.String(10), default='user')
     quizzes = db.relationship('Score', backref='user', lazy=True)
 
@@ -57,4 +58,4 @@ class Score(db.Model):
     time_stamp_of_attempt = db.Column(db.DateTime, default=datetime.utcnow)
     total_scored = db.Column(db.Integer, nullable=False)
     total_possible = db.Column(db.Integer, nullable=False, default=0)
-    completed = db.Column(db.Boolean, default=False)
+    completed = db.Column(db.Boolean, default=True)

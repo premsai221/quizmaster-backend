@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.extensions import db, cache
-from app.models import User, Quiz, Score
+from app.models import User, Quiz, Score, Chapter, Subject
 from datetime import datetime
 from app.tasks import export_quiz_data
 
@@ -31,46 +31,85 @@ def get_profile():
     except Exception as e:
         return jsonify({"error": f"Server error: {str(e)}"}), 500
 
-@user_bp.route("/quizzes", methods=["GET"])
+@user_bp.route("/subject/<int:subject_id>/chapters", methods=["GET"])
 @jwt_required()
-@cache.cached(timeout=60)  # Cache for 1 minute
-def get_quizzes():
+# @cache.cached(timeout=60)  # Cache for 1 minute
+def get_chapters(subject_id):
+    user_id = int(get_jwt_identity())
     try:
-        quizzes = Quiz.query.all()
-        quiz_list = [
-            {
-                "id": quiz.id, 
-                "chapter_id": quiz.chapter_id, 
-                "date_of_quiz": str(quiz.date_of_quiz), 
-                "time_duration": quiz.time_duration
+        subject = Subject.query.get(subject_id)
+        if not subject:
+            return jsonify({"error": "Subject not found"}), 404
+        chapters_list = Chapter.query.filter_by(subject_id=subject_id).all()
+        chapters = []
+        for chapter in chapters_list:
+            quiz = chapter.quiz[0]
+            score = Score.query.filter_by(quiz_id=quiz.id, user_id=user_id).first()
+            chapter_details = {
+                'id': chapter.id,
+                'name': chapter.name,
+                'description': chapter.description,
+                'quiz_id': quiz.id,
+                'date_of_quiz': quiz.date_of_quiz,
+                'time_duration': quiz.time_duration
             }
-            for quiz in quizzes
-        ]
-        return jsonify({"quizzes": quiz_list}), 200
+            if score:
+                chapter_details["attempted"] = True
+                chapter_details["score"] = {
+                    'total_scored': score.total_scored,
+                    'total_possible': score.total_possible
+                }
+            else:
+                chapter_details["attempted"] = False
+            chapters.append(chapter_details)
+        return jsonify({"chapters": chapters, "subject": subject.name}), 200
     except Exception as e:
         return jsonify({"error": f"Error fetching quizzes: {str(e)}"}), 500
 
-@user_bp.route("/quizzes/<int:quiz_id>/attempt", methods=["POST"])
+@user_bp.route("/quiz/<int:quiz_id>/check", methods=["GET"])
+@jwt_required()
+def check_quiz_availability(quiz_id):
+    try:
+        user_id = int(get_jwt_identity())
+        quiz = Quiz.query.get(quiz_id)
+        print(quiz.date_of_quiz)
+        return "ok", 400
+    except Exception as e:
+        print(e)
+        return jsonify({"error": f"Error checking quiz: {str(e)}"}), 500
+
+@user_bp.route("/quiz/<int:quiz_id>/attempt", methods=["POST"])
 @jwt_required()
 def attempt_quiz(quiz_id):
     try:
         user_id = int(get_jwt_identity())
         quiz = Quiz.query.get(quiz_id)
 
+        correct_options = {}
+        total_possible = 0
+        for question in quiz.questions:
+            correct_options[question.id] = question.correct_option
+            total_possible += 1
+
         if not quiz:
             return jsonify({"error": "Quiz not found"}), 404
 
         data = request.get_json()
-        if not data:
+        if not data or "answers" not in data or not isinstance(data["answers"], list):
             return jsonify({"error": "Invalid JSON data"}), 400
-            
-        total_scored = data.get("total_scored", 0)
-        total_possible = data.get("total_possible", 0)
+        
+        marked_options = data["answers"]
+        total_scored = 0
+        for option in marked_options:
+            if correct_options.get(option.question_id) != None:
+                if correct_options[option.question_id] == option.marked:
+                    total_scored += 1
+                del correct_options[option.question_id]
 
         score_entry = Score(
             quiz_id=quiz_id,
             user_id=user_id,
-            time_stamp_of_attempt=datetime.utcnow(),
+            time_stamp_of_attempt=datetime.now(),
             total_scored=total_scored,
             total_possible=total_possible,
             completed=True
@@ -83,7 +122,7 @@ def attempt_quiz(quiz_id):
         if hasattr(get_scores, 'uncached'):
             cache.delete_memoized(get_scores, user_id)
 
-        return jsonify({"message": "Quiz attempt recorded", "score_id": score_entry.id}), 201
+        return jsonify({"message": "Quiz attempt recorded", "score_id": score_entry.id, "score": total_scored}), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Error saving quiz attempt: {str(e)}"}), 500

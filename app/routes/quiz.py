@@ -81,7 +81,8 @@ def get_quiz_questions(quiz_id):
         {
             "id": q.id,
             "question_statement": q.question_statement,
-            "options": [q.option1, q.option2, q.option3, q.option4]
+            "options": [q.option1, q.option2, q.option3, q.option4],
+            "correct_option": q.correct_option
         }
         for q in questions
     ]
