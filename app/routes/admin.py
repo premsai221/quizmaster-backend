@@ -350,3 +350,126 @@ def create_complete_chapter(subject_id):
             
     except Exception as e:
         return jsonify({"error": f"Server error: {str(e)}"}), 500
+    
+@admin_bp.route("/chapters/edit/<int:chapter_id>", methods=["POST"])
+@jwt_required()
+@admin_required
+def edit_chapter(chapter_id):
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid JSON data"}), 400
+            
+        # Get the chapter
+        chapter = Chapter.query.get(chapter_id)
+        if not chapter:
+            return jsonify({"error": "Chapter not found"}), 404
+            
+        # Check for name conflicts if name is changing
+        if "name" in data and data["name"] != chapter.name:
+            existing_chapter = Chapter.query.filter_by(
+                name=data["name"], 
+                subject_id=chapter.subject_id
+            ).first()
+            if existing_chapter:
+                return jsonify({
+                    "error": "Chapter with this name already exists in this subject"
+                }), 400
+        
+        # Update chapter details
+        if "name" in data:
+            chapter.name = data["name"]
+        if "description" in data:
+            chapter.description = data["description"]
+            
+        # Update associated quiz if provided
+        quiz_data = data.get("quiz")
+        if quiz_data and chapter.quiz:
+            quiz = chapter.quiz[0]  # Assuming one quiz per chapter
+            
+            if "date_of_quiz" in quiz_data:
+                try:
+                    if isinstance(quiz_data["date_of_quiz"], str):
+                        quiz.date_of_quiz = datetime.fromisoformat(quiz_data["date_of_quiz"])
+                    else:
+                        quiz.date_of_quiz = quiz_data["date_of_quiz"]
+                except ValueError:
+                    return jsonify({"error": "Invalid date format. Use ISO format (YYYY-MM-DDTHH:MM:SS)"}), 400
+                    
+            if "time_duration" in quiz_data:
+                quiz.time_duration = quiz_data["time_duration"]
+                
+            if "remarks" in quiz_data:
+                quiz.remarks = quiz_data["remarks"]
+        
+        db.session.commit()
+        
+        response = {
+            "message": "Chapter and quiz updated successfully",
+            "chapter": {
+                "id": chapter.id,
+                "name": chapter.name,
+                "description": chapter.description
+            }
+        }
+        
+        if chapter.quiz:
+            quiz = chapter.quiz[0]
+            response["quiz"] = {
+                "id": quiz.id,
+                "date_of_quiz": quiz.date_of_quiz.isoformat(),
+                "time_duration": quiz.time_duration,
+                "remarks": quiz.remarks
+            }
+        
+        return jsonify(response), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+
+@admin_bp.route("/questions/edit/<int:question_id>", methods=["POST"])
+@jwt_required()
+@admin_required
+def edit_question(question_id):
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid JSON data"}), 400
+            
+        question = Question.query.get(question_id)
+        if not question:
+            return jsonify({"error": "Question not found"}), 404
+        
+        if "question_statement" in data:
+            question.question_statement = data["question_statement"]
+            
+        for i in range(1, 5):
+            option_key = f"option{i}"
+            if option_key in data:
+                setattr(question, option_key, data[option_key])
+        
+        if "correct_option" in data:
+            if not (1 <= data["correct_option"] <= 4):
+                return jsonify({"error": "Correct option must be between 1 and 4"}), 400
+            question.correct_option = data["correct_option"]
+        
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Question updated successfully",
+            "question": {
+                "id": question.id,
+                "question_statement": question.question_statement,
+                "option1": question.option1,
+                "option2": question.option2,
+                "option3": question.option3,
+                "option4": question.option4,
+                "correct_option": question.correct_option
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
