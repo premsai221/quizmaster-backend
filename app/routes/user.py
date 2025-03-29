@@ -72,10 +72,13 @@ def check_quiz_availability(quiz_id):
     try:
         user_id = int(get_jwt_identity())
         quiz = Quiz.query.get(quiz_id)
-        print(quiz.date_of_quiz)
-        return "ok", 400
+        if not quiz or quiz.date_of_quiz > datetime.now():
+            return jsonify({"error": "Quiz not availble"}), 404
+        score = Score.query.filter_by(quiz_id=quiz_id, user_id=user_id).first()
+        if score:
+            return jsonify({"error": "Quiz attempted already"}), 404
+        return "ok", 200
     except Exception as e:
-        print(e)
         return jsonify({"error": f"Error checking quiz: {str(e)}"}), 500
 
 @user_bp.route("/quiz/<int:quiz_id>/attempt", methods=["POST"])
@@ -100,11 +103,11 @@ def attempt_quiz(quiz_id):
         
         marked_options = data["answers"]
         total_scored = 0
-        for option in marked_options:
-            if correct_options.get(option.question_id) != None:
-                if correct_options[option.question_id] == option.marked:
+        for answer in marked_options:
+            if correct_options.get(answer['question_id']) != None:
+                if correct_options[answer['question_id']] == answer['option']:
                     total_scored += 1
-                del correct_options[option.question_id]
+                del correct_options[answer['question_id']]
 
         score_entry = Score(
             quiz_id=quiz_id,
@@ -119,32 +122,41 @@ def attempt_quiz(quiz_id):
         db.session.commit()
         
         # Clear user scores cache if using memoization
-        if hasattr(get_scores, 'uncached'):
-            cache.delete_memoized(get_scores, user_id)
+        # if hasattr(get_scores, 'uncached'):
+        #     cache.delete_memoized(get_scores, user_id)
 
         return jsonify({"message": "Quiz attempt recorded", "score_id": score_entry.id, "score": total_scored}), 201
     except Exception as e:
+        print(e)
         db.session.rollback()
         return jsonify({"error": f"Error saving quiz attempt: {str(e)}"}), 500
 
+@user_bp.route("/clear", methods=["GET"])
+def clearScores():
+    Score.query.filter().delete()
+    db.session.commit()
+    return "hello", 200
+
 @user_bp.route("/scores", methods=["GET"])
 @jwt_required()
-@cache.memoize(timeout=300)  # Cache for 5 minutes
+# @cache.memoize(timeout=300)  # Cache for 5 minutes
 def get_scores():
     try:
         user_id = int(get_jwt_identity())
         scores = Score.query.filter_by(user_id=user_id).all()
+        score_list = []
 
-        score_list = [
-            {
+        for score in scores:
+            quiz = Quiz.query.get(score.quiz_id)
+            score_list.append({
                 "quiz_id": score.quiz_id, 
-                "total_scored": score.total_scored,
-                "total_possible": score.total_possible,
+                "subject": quiz.chapter.subject.name,
+                "chapter": quiz.chapter.name,
+                "marks_scored": str(score.total_scored) + "/" + str(score.total_possible),
                 "percentage": (score.total_scored / score.total_possible * 100) if score.total_possible > 0 else 0,
-                "attempted_on": str(score.time_stamp_of_attempt)
-            }
-            for score in scores
-        ]
+                "time_stamp_of_attempt": score.time_stamp_of_attempt
+            })
+
 
         return jsonify({"scores": score_list}), 200
     except Exception as e:

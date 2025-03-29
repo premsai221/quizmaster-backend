@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from app.extensions import db
-from app.models import Subject, Chapter, Quiz, Question, User
+from app.models import Score, Subject, Chapter, Quiz, Question, User
 from app.utils.helpers import admin_required
 from datetime import datetime
 
@@ -473,3 +473,29 @@ def edit_question(question_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Server error: {str(e)}"}), 500
+    
+
+@admin_bp.route("/quiz/<int:quiz_id>/scores", methods=["GET"])
+@jwt_required()
+@admin_required
+def get_quiz_scores(quiz_id):
+    try:
+        quiz = Quiz.query.get(quiz_id)
+
+        if not quiz:
+            return jsonify({"error": "Quiz not found"}), 404
+        
+        scores = Score.query.filter_by(quiz_id=quiz_id)
+        
+        score_list = []
+
+        for score in scores:
+            user_name = User.query.get(score.user_id).full_name
+            score_list.append({
+                "time_stamp_of_attempt": score.time_stamp_of_attempt,
+                "marks_scored": str(score.total_scored) + "/" + str(score.total_possible),
+                "user_name": user_name
+            })
+        return jsonify({"scores": score_list}), 200
+    except Exception as e:
+        print(e)

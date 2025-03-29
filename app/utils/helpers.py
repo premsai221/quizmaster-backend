@@ -9,9 +9,7 @@ def admin_required(fn):
         try:
             verify_jwt_in_request()
             user_id = int(get_jwt_identity())
-            user = User.query.get(user_id)
-            
-            if not user or user.role != 'admin':
+            if not is_user_admin(user_id):
                 return jsonify({"error": "Admin access required"}), 403
             
             return fn(*args, **kwargs)
@@ -20,3 +18,7 @@ def admin_required(fn):
         except Exception as e:
             return jsonify({"error": f"Authentication error: {str(e)}"}), 401
     return wrapper
+
+def is_user_admin(user_id):
+    user = User.query.get(user_id)
+    return user.role == "admin"

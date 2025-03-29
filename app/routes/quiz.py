@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import Quiz, Question, Subject, Chapter
 from app.extensions import db
+from app.utils.helpers import is_user_admin
 
 quiz_bp = Blueprint("quiz", __name__)
 
@@ -72,22 +73,27 @@ def get_quiz(quiz_id):
 @quiz_bp.route("/<int:quiz_id>/questions", methods=["GET"])
 @jwt_required()
 def get_quiz_questions(quiz_id):
+    user_id = int(get_jwt_identity())
+    quiz = Quiz.query.get(quiz_id)
     questions = Question.query.filter_by(quiz_id=quiz_id).all()
     
     if not questions:
         return jsonify({"error": "No questions found for this quiz"}), 404
 
-    question_list = [
-        {
+    question_list = []
+    for q in questions:
+        question = {
             "id": q.id,
             "question_statement": q.question_statement,
-            "options": [q.option1, q.option2, q.option3, q.option4],
-            "correct_option": q.correct_option
+            "options": [q.option1, q.option2, q.option3, q.option4]
         }
-        for q in questions
-    ]
+        if is_user_admin(user_id):
+            question["correct_option"] = q.correct_option 
+        else:
+            question["option"] = 0
+        question_list.append(question)
 
-    return jsonify({"questions": question_list}), 200
+    return jsonify({"questions": question_list, "time_duration": quiz.time_duration}), 200
 
 @quiz_bp.route("/<int:quiz_id>/submit", methods=["POST"])
 @jwt_required()
